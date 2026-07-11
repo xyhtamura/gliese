@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gliese Delay // Planetary Acoustics Lab</title>
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="A physics-derived multi-tap delay and reverb simulator based on acoustic propagation through graded-index planetary atmospheres.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=Syne+Mono&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app-container" class="kiosk-frame">
+        <!-- Pinned Header / Corporate Costume -->
+        <header class="lab-header">
+            <div class="logo-box">
+                <span class="logo-text">GLIESE</span>
+                <span class="tag-sub">ACOUSTICS LAB // v1.0.4</span>
+            </div>
+            <div class="organic-status">
+                <span class="status-indicator animate-pulse"></span>
+                <span class="status-readout">SYSTEM STATUS: NUTRIENT FLOW OPTIMAL // AXIS RHO PRESSURE DETECTED</span>
+            </div>
+        </header>
+
+        <!-- Main Cockpit Area -->
+        <main class="cockpit-grid">
+            
+            <!-- Left Panel: Physical Parameters Control Panel (Tactile Cockpit) -->
+            <section class="control-panel panel-left animate-slide-in">
+                <div class="panel-header">
+                    <span class="panel-icon">⎈</span>
+                    <h2>ATMOSPHERE PROFILE</h2>
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-r0">Axis Radius (r₀)</label>
+                        <span id="val-r0" class="numeric-display">1.00</span>
+                    </div>
+                    <input type="range" id="param-r0" min="0.5" max="2.0" step="0.05" value="1.00" class="slider-cyan">
+                    <div class="slider-helper">Peak sound channel radius</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-a">Inner Boundary (a)</label>
+                        <span id="val-a" class="numeric-display">0.40</span>
+                    </div>
+                    <input type="range" id="param-a" min="0.1" max="0.9" step="0.05" value="0.40" class="slider-lime">
+                    <div class="slider-helper">Hard absorbing core radius</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-b">Outer Boundary (b)</label>
+                        <span id="val-b" class="numeric-display">1.60</span>
+                    </div>
+                    <input type="range" id="param-b" min="1.1" max="3.0" step="0.05" value="1.60" class="slider-purple">
+                    <div class="slider-helper">Top of scattering atmosphere</div>
+                </div>
+
+                <hr class="panel-divider">
+
+                <div class="panel-header">
+                    <span class="panel-icon">⚛</span>
+                    <h2>PLANETARY PHYSICS</h2>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-c2">Outer stiffness (C₂ / ω₁²)</label>
+                        <span id="val-c2" class="numeric-display">1.00</span>
+                    </div>
+                    <input type="range" id="param-c2" min="0.1" max="4.0" step="0.1" value="1.00" class="slider-amber">
+                    <div class="slider-helper">Outer harmonic bending force</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-c3">Inner stiffness (C₃ / ω₂²)</label>
+                        <span id="val-c3" class="numeric-display">1.00</span>
+                    </div>
+                    <input type="range" id="param-c3" min="0.1" max="4.0" step="0.1" value="1.00" class="slider-amber">
+                    <div class="slider-helper">Inner repulsive force</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-peak">Peak Refraction (n²_max)</label>
+                        <span id="val-peak" class="numeric-display">2.00</span>
+                    </div>
+                    <input type="range" id="param-peak" min="1.0" max="4.0" step="0.1" value="2.00" class="slider-cyan">
+                    <div class="slider-helper">Refractive index square at r₀</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-refl">Boundary Reflection</label>
+                        <span id="val-refl" class="numeric-display">0.60</span>
+                    </div>
+                    <input type="range" id="param-refl" min="0.0" max="1.0" step="0.05" value="0.60" class="slider-purple">
+                    <div class="slider-helper">Wall bounce amplitude coefficient</div>
+                </div>
+            </section>
+
+            <!-- Central Area: Interactive 3D Orbit Display & Wavefront Pulse -->
+            <section class="display-panel panel-center">
+                <div class="display-container">
+                    <div class="display-overlay-top">
+                        <div class="coordinate-readout">
+                            LAT: <span id="readout-lat">22.0°</span> | AZI: <span id="readout-azi">35.0°</span>
+                        </div>
+                        <div class="orbit-controls">
+                            <button id="btn-orbit" class="pill-btn active">Auto-Orbit</button>
+                            <button id="btn-reset-view" class="pill-btn">Reset View</button>
+                        </div>
+                    </div>
+
+                    <canvas id="canvas-3d"></canvas>
+
+                    <div class="display-overlay-bottom">
+                        <button id="btn-pulse" class="trigger-btn">
+                            <span class="btn-glow"></span>
+                            <span class="btn-text">FIRE WAVEFRONT PULSE</span>
+                        </button>
+                        <div class="tracer-stats">
+                            Rays: <span id="stat-rays">250</span> | Taps: <span id="stat-taps">0</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Simulation Parameters & Presets -->
+            <section class="control-panel panel-right animate-slide-in">
+                <div class="panel-header">
+                    <span class="panel-icon">⚙</span>
+                    <h2>RAY SIMULATOR</h2>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-rays">Ray Bundle Density</label>
+                        <span id="val-rays" class="numeric-display">250</span>
+                    </div>
+                    <input type="range" id="param-rays" min="50" max="800" step="25" value="250" class="slider-lime">
+                    <div class="slider-helper">Number of rays to trace</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-steps">Integration Steps</label>
+                        <span id="val-steps" class="numeric-display">2500</span>
+                    </div>
+                    <input type="range" id="param-steps" min="500" max="4000" step="100" value="2500" class="slider-purple">
+                    <div class="slider-helper">Max integration length</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-dt">Integrator Step (dt)</label>
+                        <span id="val-dt" class="numeric-display">0.012</span>
+                    </div>
+                    <input type="range" id="param-dt" min="0.005" max="0.025" step="0.001" value="0.012" class="slider-amber">
+                    <div class="slider-helper">Verlet integration step size</div>
+                </div>
+
+                <hr class="panel-divider">
+
+                <div class="panel-header">
+                    <span class="panel-icon">✦</span>
+                    <h2>PLANETARY PRESETS</h2>
+                </div>
+                <div class="presets-grid">
+                    <button class="preset-btn" data-preset="earth">Earth SOFAR</button>
+                    <button class="preset-btn" data-preset="gliese">Gliese 581g</button>
+                    <button class="preset-btn" data-preset="kepler">Kepler 186f</button>
+                    <button class="preset-btn" data-preset="chaotic">HD 189733b</button>
+                </div>
+
+                <hr class="panel-divider">
+
+                <div class="panel-header">
+                    <span class="panel-icon">♫</span>
+                    <h2>ACOUSTIC CONFIG</h2>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-target-first">First Arrival (ms)</label>
+                        <span id="val-target-first" class="numeric-display">70 ms</span>
+                    </div>
+                    <input type="range" id="param-target-first" min="20" max="250" step="5" value="70" class="slider-cyan">
+                    <div class="slider-helper">Scales physical scale to musical delays</div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row-header">
+                        <label for="param-mix">Dry / Wet Mix</label>
+                        <span id="val-mix" class="numeric-display">40 %</span>
+                    </div>
+                    <input type="range" id="param-mix" min="0" max="100" step="5" value="40" class="slider-lime">
+                    <div class="slider-helper">Acoustic balance</div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Deck: Audio Controls & Impulse Response Plot -->
+        <footer class="bottom-deck">
+            <!-- Left Deck: Audio Player Pod -->
+            <div class="player-pod">
+                <div class="pod-header">ACOUSTIC REALIZER</div>
+                
+                <div class="sound-select-wrapper">
+                    <select id="sound-source" class="custom-select">
+                        <option value="pluck">Arpeggio Synth Pluck</option>
+                        <option value="click">Impulse Click Burst</option>
+                        <option value="custom">Custom Audio File...</option>
+                    </select>
+                </div>
+
+                <div class="file-upload-area hidden" id="upload-wrapper">
+                    <input type="file" id="audio-upload" accept="audio/*">
+                    <label for="audio-upload" class="upload-btn">📂 Choose Audio File...</label>
+                    <div id="file-name" class="file-name-display">No file loaded</div>
+                </div>
+
+                <div class="player-controls">
+                    <button id="btn-generate" class="action-btn render-btn">
+                        <span class="btn-shine"></span>
+                        GENERATE ACOUSTICS
+                    </button>
+                    <div class="player-btn-group">
+                        <button id="btn-play" class="control-btn" disabled>▶ PLAY</button>
+                        <button id="btn-stop" class="control-btn" disabled>■ STOP</button>
+                        <button id="btn-loop" class="control-btn toggle-btn" disabled>↻ LOOP</button>
+                        <button id="btn-export" class="control-btn" disabled>↓ EXPORT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Deck: IR Waveform Plot (Visual Reliquary) -->
+            <div class="ir-plot-container">
+                <div class="ir-header">
+                    <span>IMPULSE RESPONSE (TAP SPECTRUM)</span>
+                    <span id="ir-arrival-info" class="ir-arrival-info">No environment rendered. Click Generate.</span>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="canvas-ir"></canvas>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Core App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

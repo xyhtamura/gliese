@@ -27,6 +27,11 @@ let simConfig = {
     mix: 0.40
 };
 
+let tempoConfig = {
+    bpm: 120,
+    note: 'free'
+};
+
 // Source and Receiver Coordinates
 const sourcePos = { x: 1.0, y: 0.0, z: 0.0 }; // initially placed on r0 axis
 const recvPos = { x: -0.42, y: 0.91, z: 0.0 };  // initially at angle 115 deg on r0 shell
@@ -78,6 +83,14 @@ const PLANET_PARAM_KEYS = [
     'rays', 'steps', 'dt', 'targetFirstMs', 'mix'
 ];
 const PLANET_INTEGER_KEYS = new Set(['rays', 'steps', 'targetFirstMs']);
+const TEMPO_NOTES = {
+    free: { label: 'FREE', beats: null },
+    '1_8': { label: '1/8', beats: 0.5 },
+    '1_8T': { label: '1/8T', beats: 1 / 3 },
+    '1_16': { label: '1/16', beats: 0.25 },
+    '1_16T': { label: '1/16T', beats: 1 / 6 },
+    '1_32': { label: '1/32', beats: 0.125 }
+};
 
 // --- DOM References ---
 const canvas3D = document.getElementById('canvas-3d');
@@ -112,6 +125,7 @@ const displays = {
     dt: document.getElementById('val-dt'),
     targetFirstMs: document.getElementById('val-target-first'),
     mix: document.getElementById('val-mix'),
+    tempoReadout: document.getElementById('tempo-sync-readout'),
     
     // Readouts
     lat: document.getElementById('readout-lat'),
@@ -142,12 +156,14 @@ const btns = {
     loop: document.getElementById('btn-loop'),
     export: document.getElementById('btn-export'),
     copyPlanet: document.getElementById('btn-copy-planet'),
+    tempoNotes: document.querySelectorAll('.tempo-note-btn'),
     presets: document.querySelectorAll('.preset-btn')
 };
 
 const selectSound = document.getElementById('sound-source');
 const uploadWrapper = document.getElementById('upload-wrapper');
 const fileInput = document.getElementById('audio-upload');
+const tempoBpmInput = document.getElementById('tempo-bpm');
 
 // --- Initialization ---
 function init() {
@@ -162,6 +178,7 @@ function init() {
     // Set initial source and receiver positions based on r0
     updateSourceReceiverCoords();
     updateActivePresetFromState();
+    updateTempoControls();
     syncPlanetHashFromState();
     if (loadedPlanetFromHash) {
         updateStatus("PLANET LINK LOADED. CLICK GENERATE.");
@@ -185,6 +202,9 @@ function setupEventListeners() {
     Object.keys(sliders).forEach(key => {
         sliders[key].addEventListener('input', () => {
             readInputs();
+            if (key === 'targetFirstMs') {
+                tempoConfig.note = 'free';
+            }
             // Bound checks: ensure core 'a' is inside channel 'r0' and 'r0' is inside 'b'
             let adjusted = false;
             if (key === 'a' || key === 'r0' || key === 'b') {
@@ -207,6 +227,7 @@ function setupEventListeners() {
             runFastTrace();
             invalidateRenderedBuffer();
             updateActivePresetFromState();
+            updateTempoControls();
             syncPlanetHashFromState();
         });
     });
@@ -223,6 +244,25 @@ function setupEventListeners() {
         btns.copyPlanet.addEventListener('click', copyPlanetUrl);
     }
 
+    if (tempoBpmInput) {
+        tempoBpmInput.addEventListener('input', () => {
+            tempoConfig.bpm = clampTempoBpm(tempoBpmInput.value);
+            tempoBpmInput.value = tempoConfig.bpm;
+            if (tempoConfig.note !== 'free') {
+                applyTempoNoteToTarget();
+            } else {
+                updateTempoControls();
+                syncPlanetHashFromState();
+            }
+        });
+    }
+
+    btns.tempoNotes.forEach(btn => {
+        btn.addEventListener('click', () => {
+            setTempoNote(btn.dataset.note);
+        });
+    });
+
     window.addEventListener('hashchange', () => {
         if (!applyPlanetHashToSliders()) return;
 
@@ -231,6 +271,7 @@ function setupEventListeners() {
         runFastTrace();
         invalidateRenderedBuffer();
         updateActivePresetFromState();
+        updateTempoControls();
         syncPlanetHashFromState();
         updateStatus("PLANET LINK LOADED. CLICK GENERATE.");
     });
@@ -453,12 +494,14 @@ function loadPreset(key) {
     if (!config) return;
 
     applyPlanetConfigToSliders(config);
+    tempoConfig.note = 'free';
 
     readInputs();
     updateSourceReceiverCoords();
     runFastTrace();
     invalidateRenderedBuffer();
     updateActivePresetFromState();
+    updateTempoControls();
     syncPlanetHashFromState();
     updateStatus(`PRESET LOADED: ${key.toUpperCase()}. CLICK GENERATE.`);
 }
@@ -522,6 +565,65 @@ function applyPlanetConfigToSliders(config) {
     });
 }
 
+function clampTempoBpm(value) {
+    const bpm = Number(value);
+    if (!Number.isFinite(bpm)) return tempoConfig.bpm;
+    return Math.max(40, Math.min(240, Math.round(bpm)));
+}
+
+function setTempoNote(noteKey) {
+    tempoConfig.note = TEMPO_NOTES[noteKey] ? noteKey : 'free';
+
+    if (tempoConfig.note !== 'free') {
+        applyTempoNoteToTarget();
+    } else {
+        updateTempoControls();
+        syncPlanetHashFromState();
+    }
+}
+
+function getTempoTargetMs(noteKey = tempoConfig.note) {
+    const note = TEMPO_NOTES[noteKey];
+    if (!note || note.beats === null) return null;
+    return (60000.0 / tempoConfig.bpm) * note.beats;
+}
+
+function applyTempoNoteToTarget() {
+    const targetMs = getTempoTargetMs();
+    if (!Number.isFinite(targetMs)) return;
+
+    const sliderValue = clampSliderValue('targetFirstMs', targetMs);
+    if (sliderValue === null) return;
+
+    sliders.targetFirstMs.value = sliderValue;
+    readInputs();
+    runFastTrace();
+    invalidateRenderedBuffer();
+    updateActivePresetFromState();
+    updateTempoControls();
+    syncPlanetHashFromState();
+}
+
+function updateTempoControls() {
+    if (tempoBpmInput) {
+        tempoBpmInput.value = tempoConfig.bpm;
+    }
+
+    btns.tempoNotes.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.note === tempoConfig.note);
+    });
+
+    if (!displays.tempoReadout) return;
+
+    if (tempoConfig.note === 'free') {
+        displays.tempoReadout.textContent = 'First arrival free';
+        return;
+    }
+
+    const note = TEMPO_NOTES[tempoConfig.note];
+    displays.tempoReadout.textContent = `${note.label} @ ${tempoConfig.bpm} BPM -> ${Math.round(simConfig.targetFirstMs)} ms`;
+}
+
 function parsePlanetHash() {
     const hash = window.location.hash.replace(/^#/, '');
     if (!hash) return null;
@@ -542,6 +644,15 @@ function parsePlanetHash() {
         validCount += 1;
     });
 
+    if (params.has('tempoBpm')) {
+        config.tempoBpm = clampTempoBpm(params.get('tempoBpm'));
+    }
+
+    if (params.has('tempoNote')) {
+        const noteKey = params.get('tempoNote');
+        config.tempoNote = TEMPO_NOTES[noteKey] ? noteKey : 'free';
+    }
+
     return validCount > 0 ? config : null;
 }
 
@@ -550,6 +661,8 @@ function applyPlanetHashToSliders() {
     if (!config) return false;
 
     applyPlanetConfigToSliders(config);
+    tempoConfig.bpm = config.tempoBpm || 120;
+    tempoConfig.note = config.tempoNote || 'free';
     return true;
 }
 
@@ -567,6 +680,8 @@ function serializePlanetParams() {
     PLANET_PARAM_KEYS.forEach(key => {
         params.set(key, formatPlanetHashValue(key, config[key]));
     });
+    params.set('tempoBpm', String(tempoConfig.bpm));
+    params.set('tempoNote', tempoConfig.note);
 
     return params.toString();
 }

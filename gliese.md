@@ -42,6 +42,7 @@ The HTML/JS MVP is located in `gliese/web/` and runs entirely client-side.
     *   *WAV Exporter*: Converts the output buffer into a 16-bit PCM `.wav` file for download.
     *   *URL Planets*: Slider-backed physical and acoustic parameters serialize into `#planet=v1...` links, with a cockpit copy control for sharing exact worlds.
     *   *Planet Card*: Each world shows derived acoustic quantities (tap count, arrival span, caustic peak, stiffness asymmetry, shell depth) from the current ray bundle.
+    *   *Tempo Sync*: First-arrival delay can snap to BPM-relative note divisions, with tempo intent preserved in URL planets.
 
 ---
 
@@ -85,7 +86,7 @@ Atmospheric absorption scales ~$f^2$: give each tap a one-pole lowpass whose cut
 Make source and receiver draggable in the 3D display, regenerating the tap structure live (pairs with 4.1). Position becomes an expressive control rather than configuration; receiver depth relative to the channel axis becomes audible geography (moving into/out of shadow zones, toward/away from caustics).
 
 ### 4.6 Planets as shareable objects
-Serialize the parameter set into the URL hash so people trade *planets*, not presets. **Done in v1.1**: slider-backed world/audio parameters round-trip through `#planet=v1...`, a cockpit copy control, and a planet card of computed acoustic quantities. Remaining: add tempo-sync so `target_first_ms` can snap to note values.
+Serialize the parameter set into the URL hash so people trade *planets*, not presets. **Done in v1.1**: slider-backed world/audio parameters round-trip through `#planet=v1...`, a cockpit copy control, a planet card of computed acoustic quantities, and tempo-sync so `target_first_ms` can snap to note values.
 
 **Priority note**: 4.4 and 4.6 are cheap wins inside the current offline architecture. 4.1/4.3/4.5 require the real-time tap engine and define v2.
 

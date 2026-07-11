@@ -258,6 +258,76 @@ body::before {
     margin-top: 0;
 }
 
+.tempo-sync-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 8px;
+    background: var(--bg-panel-dark);
+    border: 1px solid var(--border-glow);
+    border-radius: 4px 14px 4px 14px;
+}
+
+.tempo-sync-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px;
+    align-items: center;
+    gap: 8px;
+}
+
+.tempo-sync-header label {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.tempo-sync-header input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--lime);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-glow);
+    border-radius: 4px;
+    padding: 3px 5px;
+    outline: none;
+}
+
+.tempo-sync-header input[type="number"]:focus {
+    border-color: var(--border-glow-focus);
+}
+
+.tempo-note-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.tempo-note-btn {
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    background: linear-gradient(180deg, oklch(0.19 0.02 172), oklch(0.14 0.02 172));
+    border: 1px solid var(--border-glow);
+    border-radius: 4px;
+    padding: 5px 4px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.tempo-note-btn:hover {
+    border-color: var(--border-glow-focus);
+}
+
+.tempo-note-btn.active {
+    color: var(--lime);
+    border-color: var(--lime);
+    background: oklch(0.20 0.06 132 / 0.18);
+}
+
 /* Sliders — no per-control glow blanket; color lives only in the thumb */
 input[type="range"] {
     -webkit-appearance: none;

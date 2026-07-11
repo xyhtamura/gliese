@@ -232,6 +232,22 @@
                     <div class="slider-helper">Scales physical scale to musical delays</div>
                 </div>
 
+                <div class="tempo-sync-panel">
+                    <div class="tempo-sync-header">
+                        <label for="tempo-bpm">Tempo Sync</label>
+                        <input type="number" id="tempo-bpm" min="40" max="240" step="1" value="120" inputmode="numeric">
+                    </div>
+                    <div class="tempo-note-grid">
+                        <button class="tempo-note-btn active" data-note="free">FREE</button>
+                        <button class="tempo-note-btn" data-note="1_8">1/8</button>
+                        <button class="tempo-note-btn" data-note="1_8T">1/8T</button>
+                        <button class="tempo-note-btn" data-note="1_16">1/16</button>
+                        <button class="tempo-note-btn" data-note="1_16T">1/16T</button>
+                        <button class="tempo-note-btn" data-note="1_32">1/32</button>
+                    </div>
+                    <div id="tempo-sync-readout" class="slider-helper">First arrival free</div>
+                </div>
+
                 <div class="control-group">
                     <div class="control-row-header">
                         <label for="param-mix">Dry / Wet Mix</label>

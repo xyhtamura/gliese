@@ -40,6 +40,8 @@ The HTML/JS MVP is located in `gliese/web/` and runs entirely client-side.
     *   *Offline Audio Realizer*: Runs the convolution in a batch using `OfflineAudioContext`, preventing real-time audio stutters.
     *   *Stereo Custom Audio*: Accepts drag-and-dropped audio files, decoding and convolving in stereo if the source is multi-channel.
     *   *WAV Exporter*: Converts the output buffer into a 16-bit PCM `.wav` file for download.
+    *   *URL Planets*: Slider-backed physical and acoustic parameters serialize into `#planet=v1...` links, with a cockpit copy control for sharing exact worlds.
+    *   *Planet Card*: Each world shows derived acoustic quantities (tap count, arrival span, caustic peak, stiffness asymmetry, shell depth) from the current ray bundle.
 
 ---
 
@@ -63,7 +65,33 @@ The HTML/JS MVP is located in `gliese/web/` and runs entirely client-side.
 
 ---
 
-## 4. Presets Configuration
+## 4. Differentiation — Why Not Just Another Multitap
+
+At the sample level the DSP is identical to any multitap ($\Sigma a_i \cdot x(t-\tau_i)$), and the handover doc's honest limit stands: few taps at static settings are indistinguishable from a hand-tuned delay. Differentiation therefore has to come from behaviors a hand-tuned delay *cannot* produce. Six pillars, in order of leverage:
+
+### 4.1 Motion (the killer feature)
+Sweeping one physical knob slides *all* taps along coherent physical trajectories — clusters converge/diverge, caustics sweep through the arrival pattern. No conventional delay offers one-parameter choreography of hundreds of taps. **Architectural blocker**: the current offline-convolution pipeline is commit-then-listen; motion requires a real-time tap engine (AudioWorklet reading the tap list per audio block, interpolating tap positions between physics solves as parameters move). Once taps are live objects, a **planet-morph** control (interpolate parameters between two presets and hear the atmosphere deform) falls out for free.
+
+### 4.2 Inverted envelope & shadow zones (the fingerprint)
+The deep-channel signature is an echo that *builds* — resolved early arrivals crescendo into dense clusters, then cut. A reversed-decay envelope that is physical, not reversed audio. Complementary: **shadow zones** — source/receiver geometries where no ray family reaches the receiver produce hard forbidden gaps in the IR. Conventional delays decay monotonically and have no forbidden regions. Lead the presentation with both; they are what a listener can actually point at.
+
+### 4.3 True binaural from geometry
+Place *two* receiver spheres at ear spacing and extract two tap sets from the same ray bundle. Interaural time and level differences fall out of the physics — a genuinely binaural planet, versus the current duplicate-channel stereo. No multitap derives its stereo image from propagation geometry.
+
+### 4.4 Physically-lawful spectral behavior
+Atmospheric absorption scales ~$f^2$: give each tap a one-pole lowpass whose cutoff is derived from its optical path length $L$ and bounce count. Later, more-traveled taps arrive darker *by law*, not by a generic damping knob. Cost is $O(N_{taps})$, consistent with the existing 9-point Hann trick.
+
+### 4.5 Geometry as performance surface
+Make source and receiver draggable in the 3D display, regenerating the tap structure live (pairs with 4.1). Position becomes an expressive control rather than configuration; receiver depth relative to the channel axis becomes audible geography (moving into/out of shadow zones, toward/away from caustics).
+
+### 4.6 Planets as shareable objects
+Serialize the parameter set into the URL hash so people trade *planets*, not presets. **Done in v1.1**: slider-backed world/audio parameters round-trip through `#planet=v1...`, a cockpit copy control, and a planet card of computed acoustic quantities. Remaining: add tempo-sync so `target_first_ms` can snap to note values.
+
+**Priority note**: 4.4 and 4.6 are cheap wins inside the current offline architecture. 4.1/4.3/4.5 require the real-time tap engine and define v2.
+
+---
+
+## 5. Presets Configuration
 
 *   **Earth SOFAR**: Symmetric channel, sound trapped near axis. $r_0=1.0, a=0.4, b=1.6, C_2=1.0, C_3=1.0$. Tame, balanced decay.
 *   **Gliese 581g**: Strongly asymmetric shells. $r_0=1.2, a=0.3, b=1.8, C_2=0.4, C_3=2.2$. Creates double-flutter, complex lopsided echo timings.

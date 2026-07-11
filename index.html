@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gliese Delay // Planetary Acoustics Lab</title>
+    <title>Gliese Audio Ray Tracing</title>
     <!-- SEO Meta Tags -->
     <meta name="description" content="A physics-derived multi-tap delay and reverb simulator based on acoustic propagation through graded-index planetary atmospheres.">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=Syne+Mono&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Averia+Sans+Libre:wght@400;700&family=Space+Grotesk:wght@400;600&family=Syne+Mono&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,12 +20,12 @@
         <header class="lab-header">
             <div class="logo-box">
                 <span class="logo-text">GLIESE</span>
-                <span class="tag-sub">ACOUSTICS LAB // v1.0.4</span>
+                <span class="tag-sub">multi tap delay via spherical ray tracing</span>
             </div>
-            <div class="organic-status">
+            <!--<div class="organic-status">
                 <span class="status-indicator animate-pulse"></span>
                 <span class="status-readout">SYSTEM STATUS: NUTRIENT FLOW OPTIMAL // AXIS RHO PRESSURE DETECTED</span>
-            </div>
+            </div>-->
         </header>
 
         <!-- Main Cockpit Area -->
@@ -184,6 +186,39 @@
                 <hr class="panel-divider">
 
                 <div class="panel-header">
+                    <span class="panel-icon">#</span>
+                    <h2>PLANET LINK</h2>
+                </div>
+                <div class="planet-link-panel">
+                    <button id="btn-copy-planet" class="planet-link-btn">COPY PLANET URL</button>
+                    <code id="planet-code" class="planet-code">#planet=v1</code>
+                    <div class="planet-card">
+                        <div class="planet-card-row">
+                            <span>TAPS</span>
+                            <strong id="planet-metric-taps">--</strong>
+                        </div>
+                        <div class="planet-card-row">
+                            <span>SPAN</span>
+                            <strong id="planet-metric-span">--</strong>
+                        </div>
+                        <div class="planet-card-row">
+                            <span>CAUSTIC</span>
+                            <strong id="planet-metric-caustic">--</strong>
+                        </div>
+                        <div class="planet-card-row">
+                            <span>ASYM</span>
+                            <strong id="planet-metric-asym">--</strong>
+                        </div>
+                        <div class="planet-card-row">
+                            <span>DEPTH</span>
+                            <strong id="planet-metric-depth">--</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="panel-divider">
+
+                <div class="panel-header">
                     <span class="panel-icon">♫</span>
                     <h2>ACOUSTIC CONFIG</h2>
                 </div>
@@ -257,5 +292,10 @@
 
     <!-- Core App Logic -->
     <script src="app.js"></script>
+    <script>
+        // Re-run the existing resize handler once webfonts settle, since a late
+        // font swap can shift layout after the initial canvas sizing already ran.
+        window.addEventListener('load', () => window.dispatchEvent(new Event('resize')));
+    </script>
 </body>
 </html>

@@ -44,6 +44,7 @@ let isDragging = false;
 let lastMousePos = { x: 0, y: 0 };
 let lastTraceResult = null; // Stored results for rendering
 let animationFrameId = null;
+let copyFeedbackTimer = null;
 
 // Wavefront Pulse Animation State
 let isPulseActive = false;
@@ -70,6 +71,13 @@ const PRESETS = {
         targetFirstMs: 110.0, mix: 0.30, rays: 400, steps: 2800, dt: 0.012
     }
 };
+
+const PLANET_HASH_VERSION = 'v1';
+const PLANET_PARAM_KEYS = [
+    'r0', 'a', 'b', 'C2', 'C3', 'peak', 'refl',
+    'rays', 'steps', 'dt', 'targetFirstMs', 'mix'
+];
+const PLANET_INTEGER_KEYS = new Set(['rays', 'steps', 'targetFirstMs']);
 
 // --- DOM References ---
 const canvas3D = document.getElementById('canvas-3d');
@@ -112,6 +120,14 @@ const displays = {
     statTaps: document.getElementById('stat-taps'),
     irArrival: document.getElementById('ir-arrival-info'),
     fileName: document.getElementById('file-name'),
+    planetCode: document.getElementById('planet-code'),
+    planetMetrics: {
+        taps: document.getElementById('planet-metric-taps'),
+        span: document.getElementById('planet-metric-span'),
+        caustic: document.getElementById('planet-metric-caustic'),
+        asym: document.getElementById('planet-metric-asym'),
+        depth: document.getElementById('planet-metric-depth')
+    },
     statusText: document.querySelector('.status-readout')
 };
 
@@ -125,6 +141,7 @@ const btns = {
     stop: document.getElementById('btn-stop'),
     loop: document.getElementById('btn-loop'),
     export: document.getElementById('btn-export'),
+    copyPlanet: document.getElementById('btn-copy-planet'),
     presets: document.querySelectorAll('.preset-btn')
 };
 
@@ -136,12 +153,19 @@ const fileInput = document.getElementById('audio-upload');
 function init() {
     setupEventListeners();
     resizeCanvases();
+
+    const loadedPlanetFromHash = applyPlanetHashToSliders();
     
     // Load default values into state and sync sliders
     readInputs();
     
     // Set initial source and receiver positions based on r0
     updateSourceReceiverCoords();
+    updateActivePresetFromState();
+    syncPlanetHashFromState();
+    if (loadedPlanetFromHash) {
+        updateStatus("PLANET LINK LOADED. CLICK GENERATE.");
+    }
 
     // Perform initial fast trace (for graphics preview only)
     runFastTrace();
@@ -181,6 +205,9 @@ function setupEventListeners() {
             }
             
             runFastTrace();
+            invalidateRenderedBuffer();
+            updateActivePresetFromState();
+            syncPlanetHashFromState();
         });
     });
 
@@ -189,11 +216,23 @@ function setupEventListeners() {
         btn.addEventListener('click', () => {
             const presetKey = btn.dataset.preset;
             loadPreset(presetKey);
-            
-            // Highlight active button
-            btns.presets.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
         });
+    });
+
+    if (btns.copyPlanet) {
+        btns.copyPlanet.addEventListener('click', copyPlanetUrl);
+    }
+
+    window.addEventListener('hashchange', () => {
+        if (!applyPlanetHashToSliders()) return;
+
+        readInputs();
+        updateSourceReceiverCoords();
+        runFastTrace();
+        invalidateRenderedBuffer();
+        updateActivePresetFromState();
+        syncPlanetHashFromState();
+        updateStatus("PLANET LINK LOADED. CLICK GENERATE.");
     });
 
     // Orbit controls
@@ -413,15 +452,305 @@ function loadPreset(key) {
     const config = PRESETS[key];
     if (!config) return;
 
-    Object.keys(sliders).forEach(s => {
-        sliders[s].value = config[s];
-    });
+    applyPlanetConfigToSliders(config);
 
     readInputs();
     updateSourceReceiverCoords();
     runFastTrace();
     invalidateRenderedBuffer();
+    updateActivePresetFromState();
+    syncPlanetHashFromState();
     updateStatus(`PRESET LOADED: ${key.toUpperCase()}. CLICK GENERATE.`);
+}
+
+function getPlanetConfigFromState() {
+    return {
+        r0: world.r0,
+        a: world.a,
+        b: world.b,
+        C2: world.C2,
+        C3: world.C3,
+        peak: world.peak,
+        refl: world.refl,
+        rays: simConfig.rays,
+        steps: simConfig.steps,
+        dt: simConfig.dt,
+        targetFirstMs: simConfig.targetFirstMs,
+        mix: simConfig.mix
+    };
+}
+
+function planetValueToSliderValue(key, value) {
+    return key === 'mix' ? value * 100.0 : value;
+}
+
+function clampSliderValue(key, value) {
+    const slider = sliders[key];
+    if (!slider) return value;
+
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const step = parseFloat(slider.step);
+    let clamped = Number(value);
+
+    if (!Number.isFinite(clamped)) return null;
+    if (Number.isFinite(min)) clamped = Math.max(min, clamped);
+    if (Number.isFinite(max)) clamped = Math.min(max, clamped);
+
+    if (Number.isFinite(step) && step > 0 && Number.isFinite(min)) {
+        clamped = Math.round((clamped - min) / step) * step + min;
+        const decimals = getDecimalPlaces(slider.step);
+        clamped = Number(clamped.toFixed(Math.max(decimals, 3)));
+    }
+
+    return clamped;
+}
+
+function getDecimalPlaces(value) {
+    const text = String(value);
+    const dotIndex = text.indexOf('.');
+    return dotIndex === -1 ? 0 : text.length - dotIndex - 1;
+}
+
+function applyPlanetConfigToSliders(config) {
+    PLANET_PARAM_KEYS.forEach(key => {
+        if (config[key] === undefined || !sliders[key]) return;
+
+        const sliderValue = clampSliderValue(key, planetValueToSliderValue(key, config[key]));
+        if (sliderValue === null) return;
+        sliders[key].value = sliderValue;
+    });
+}
+
+function parsePlanetHash() {
+    const hash = window.location.hash.replace(/^#/, '');
+    if (!hash) return null;
+
+    const params = new URLSearchParams(hash);
+    if (params.get('planet') !== PLANET_HASH_VERSION) return null;
+
+    const config = {};
+    let validCount = 0;
+
+    PLANET_PARAM_KEYS.forEach(key => {
+        if (!params.has(key)) return;
+
+        const value = Number(params.get(key));
+        if (!Number.isFinite(value)) return;
+
+        config[key] = value;
+        validCount += 1;
+    });
+
+    return validCount > 0 ? config : null;
+}
+
+function applyPlanetHashToSliders() {
+    const config = parsePlanetHash();
+    if (!config) return false;
+
+    applyPlanetConfigToSliders(config);
+    return true;
+}
+
+function formatPlanetHashValue(key, value) {
+    if (PLANET_INTEGER_KEYS.has(key)) return String(Math.round(value));
+    if (key === 'dt' || key === 'mix') return Number(value.toFixed(3)).toString();
+    return Number(value.toFixed(2)).toString();
+}
+
+function serializePlanetParams() {
+    const params = new URLSearchParams();
+    const config = getPlanetConfigFromState();
+
+    params.set('planet', PLANET_HASH_VERSION);
+    PLANET_PARAM_KEYS.forEach(key => {
+        params.set(key, formatPlanetHashValue(key, config[key]));
+    });
+
+    return params.toString();
+}
+
+function getPlanetUrl() {
+    const url = new URL(window.location.href);
+    url.hash = serializePlanetParams();
+    return url.toString();
+}
+
+function syncPlanetHashFromState() {
+    const hash = serializePlanetParams();
+    const currentHash = window.location.hash.replace(/^#/, '');
+
+    if (currentHash !== hash) {
+        const url = new URL(window.location.href);
+        url.hash = hash;
+        window.history.replaceState(null, '', url.toString());
+    }
+
+    updatePlanetLinkDisplay();
+}
+
+function updatePlanetLinkDisplay() {
+    if (!displays.planetCode) return;
+    displays.planetCode.textContent = `#${serializePlanetParams()}`;
+}
+
+function scalePlanetTaps(taps) {
+    if (!taps || taps.length === 0) return [];
+
+    const targetFirstS = simConfig.targetFirstMs / 1000.0;
+    const minL = Math.min(...taps.map(t => t.L));
+
+    if (!Number.isFinite(minL) || minL <= 0) return [];
+
+    return taps.map(t => ({
+        delayMs: t.L * (targetFirstS / minL) * 1000.0,
+        gain: t.gain,
+        nr: t.nr
+    }));
+}
+
+function formatMetricMs(ms) {
+    if (!Number.isFinite(ms)) return '--';
+    if (ms >= 1000) return `${(ms / 1000).toFixed(2)} s`;
+    return `${Math.round(ms)} ms`;
+}
+
+function formatMetricSpan(firstMs, lastMs) {
+    if (!Number.isFinite(firstMs) || !Number.isFinite(lastMs)) return '--';
+    if (lastMs >= 1000) {
+        return `${(firstMs / 1000).toFixed(2)}-${(lastMs / 1000).toFixed(2)} s`;
+    }
+    return `${Math.round(firstMs)}-${Math.round(lastMs)} ms`;
+}
+
+function getCausticPeakMs(scaledTaps) {
+    if (!scaledTaps || scaledTaps.length === 0) return null;
+
+    const binMs = 25;
+    const bins = new Map();
+
+    scaledTaps.forEach(t => {
+        const bin = Math.round(t.delayMs / binMs);
+        bins.set(bin, (bins.get(bin) || 0) + Math.abs(t.gain));
+    });
+
+    let peakBin = null;
+    let peakEnergy = -Infinity;
+    bins.forEach((energy, bin) => {
+        if (energy > peakEnergy) {
+            peakEnergy = energy;
+            peakBin = bin;
+        }
+    });
+
+    return peakBin === null ? null : peakBin * binMs;
+}
+
+function formatAsymmetry() {
+    const ratio = world.C3 / world.C2;
+    if (!Number.isFinite(ratio) || ratio <= 0) return '--';
+    if (Math.abs(ratio - 1.0) < 0.05) return 'BALANCED';
+    if (ratio > 1.0) return `${ratio.toFixed(2)}x IN`;
+    return `${(1.0 / ratio).toFixed(2)}x OUT`;
+}
+
+function updatePlanetCard(traceResult = lastTraceResult) {
+    const metricDisplays = displays.planetMetrics;
+    if (!metricDisplays) return;
+
+    const taps = traceResult?.taps || [];
+    const scaledTaps = scalePlanetTaps(taps);
+    const causticMs = getCausticPeakMs(scaledTaps);
+
+    if (metricDisplays.taps) metricDisplays.taps.textContent = String(taps.length);
+    if (metricDisplays.asym) metricDisplays.asym.textContent = formatAsymmetry();
+    if (metricDisplays.depth) metricDisplays.depth.textContent = `${(world.b - world.a).toFixed(2)} R`;
+
+    if (scaledTaps.length === 0) {
+        if (metricDisplays.span) metricDisplays.span.textContent = 'SHADOW';
+        if (metricDisplays.caustic) metricDisplays.caustic.textContent = '--';
+        return;
+    }
+
+    const arrivals = scaledTaps.map(t => t.delayMs);
+    const firstMs = Math.min(...arrivals);
+    const lastMs = Math.max(...arrivals);
+
+    if (metricDisplays.span) metricDisplays.span.textContent = formatMetricSpan(firstMs, lastMs);
+    if (metricDisplays.caustic) metricDisplays.caustic.textContent = formatMetricMs(causticMs);
+}
+
+function updateActivePresetFromState() {
+    const current = getPlanetConfigFromState();
+    let activePreset = null;
+
+    Object.entries(PRESETS).forEach(([key, config]) => {
+        const isMatch = PLANET_PARAM_KEYS.every(paramKey => {
+            const currentValue = current[paramKey];
+            const presetValue = config[paramKey];
+            return Math.abs(currentValue - presetValue) < 0.0005;
+        });
+
+        if (isMatch) activePreset = key;
+    });
+
+    btns.presets.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === activePreset);
+    });
+}
+
+async function copyPlanetUrl() {
+    syncPlanetHashFromState();
+
+    const url = getPlanetUrl();
+    let copied = false;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(url);
+            copied = true;
+        } catch (err) {
+            copied = false;
+        }
+    }
+
+    if (!copied) {
+        copied = fallbackCopyText(url);
+    }
+
+    setCopyPlanetFeedback(copied ? 'COPIED' : 'COPY FAILED');
+    updateStatus(copied ? "PLANET URL COPIED." : "COPY FAILED. SELECT THE HASH FIELD.");
+}
+
+function fallbackCopyText(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    let copied = false;
+    try {
+        copied = document.execCommand('copy');
+    } catch (err) {
+        copied = false;
+    }
+
+    document.body.removeChild(textArea);
+    return copied;
+}
+
+function setCopyPlanetFeedback(label) {
+    if (!btns.copyPlanet) return;
+
+    window.clearTimeout(copyFeedbackTimer);
+    btns.copyPlanet.textContent = label;
+    copyFeedbackTimer = window.setTimeout(() => {
+        btns.copyPlanet.textContent = 'COPY PLANET URL';
+    }, 1400);
 }
 
 function invalidateRenderedBuffer() {
@@ -434,6 +763,7 @@ function invalidateRenderedBuffer() {
 }
 
 function updateStatus(text) {
+    if (!displays.statusText) return;
     displays.statusText.textContent = text;
 }
 
@@ -474,6 +804,7 @@ function runFastTrace() {
     const traceResult = runVerletTrace(simConfig.rays, simConfig.steps, simConfig.dt);
     lastTraceResult = traceResult;
     displays.statTaps.textContent = traceResult.taps.length;
+    updatePlanetCard(traceResult);
 }
 
 function runVerletTrace(numRays, maxSteps, dt) {
